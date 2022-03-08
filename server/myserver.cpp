@@ -274,7 +274,7 @@ void MyServer::dealLogin(TcpSocket * s, const Json::Value &inJson)
 void MyServer::singleGetQustion(TcpSocket * s)
 {
     char sql[100] = {0};
-    sprintf(sql, "select *from question order by rand() limit %d", QUESTION_NUM);
+    sprintf(sql, "select * from question order by rand() limit %d", QUESTION_NUM);
 
     int result = OK;
     Json::Value outJson;

@@ -38,9 +38,7 @@ int TcpServer::listen(int port, const std::string& ip)
         return -1;
     }
 
-int t = 10;
-while(t--)
-{
+
     //创建套接字 socket
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(sock_fd < 0)
@@ -59,7 +57,7 @@ while(t--)
     struct sockaddr_in addr;
     bzero(&addr, sizeof(struct sockaddr_in));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port++);
+    addr.sin_port = htons(port);
 
     //使用用户指定 的ip
     if(ip.size())
@@ -97,7 +95,6 @@ while(t--)
         g_logger->error("add event to libevent error!");
         return -1;
     }
-}
 
 
     //逐一开启线程数组的线程工作 即:开启线程池工作
