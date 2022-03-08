@@ -11,7 +11,7 @@
 int main()
 {
     BrainStorm::MyServer::ptr s(new BrainStorm::MyServer(THREAD_NUM));
-    if(s->listen(8000) < 0)
+    if(s->listen(9999) < 0)
     {
         return 0;
     }

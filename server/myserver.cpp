@@ -65,10 +65,8 @@ void MyServer::readEvent(TcpSocket * s)
         if(len <= 0)   //如果 长度小于等于0跳出循环
             break;
 
-        s->readData(buf, 5);
- 
+        s->readData(buf, len);
     }
-
 
 
     //数据解析  将读取的数据解析为Json格式
