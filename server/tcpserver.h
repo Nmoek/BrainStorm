@@ -1,18 +1,16 @@
 #ifndef _TCPSERVER_H_
 #define _TCPSERVER_H_
 
-
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
 #include <vector>
+#include <functional>
 
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_struct.h>
 #include <event2/bufferevent_compat.h>
-#include <time.h>
 
 #include "tcpsocket.h"
 #include "thread.h"
@@ -23,6 +21,7 @@ namespace BrainStorm
 {
 
 class TcpSocket;
+
 /**
  * @brief TCP服务器类基类
  */
@@ -37,7 +36,7 @@ public:
      * @brief TCP服务器类构造函数
      * @param[in] tread_num 起始线程数 
      */
-    TcpServer(int tread_num = 10);
+    TcpServer(uint64_t tread_num = 10);
 
     /**
      * @brief 监听
@@ -45,7 +44,7 @@ public:
      * @param[in] ip 监听IP地址
      * @return int 
      */
-    int listen(int port, const std::string &ip = "");
+    int listen(uint16_t port, const std::string &ip = "");
 
     /**
      * @brief 开启服务器
@@ -58,14 +57,24 @@ public:
      * @param[in] ip 客户端IP地址
      * @param[in] port 客户端端口
      */
-    void handleClient(evutil_socket_t sock_fd, const std::string & ip, int port);
+    void handleClient(evutil_socket_t sock_fd, const std::string & ip, uint16_t port);
 
+    /**
+     * @brief 获取当前线程运行的服务器指针
+     * @return TcpServer* 
+     */
+    static TcpServer* GetThis();
 
 protected:
     /**
      * @brief 事件回调函数 负责处理新连接
+     * @param[in] sock_fd 和事件绑定的文件句柄
+     * @param[in] what 传回的事件
+     * @param[in] arg 其余参数（传递上下文）
      */
-    static void StartAccept(evutil_socket_t, short, void*);
+    static void StartAccept(evutil_socket_t sock_fd, short what, void *arg);
+
+    void setThis();
 
     virtual void conncectEvent(TcpSocket *) = 0;
     virtual void readEvent(TcpSocket *) = 0;
@@ -73,20 +82,29 @@ protected:
     virtual void closeEvent(TcpSocket *, short) = 0;
 
 private:
-    //线程池
+    /**
+     * @brief 给子线程传递的连接参数结构体
+     */
+    struct SockItem
+    {
+        typedef std::shared_ptr<SockItem> ptr;
+        int ac_fd;
+        std::string ip;
+        uint16_t port;
+    };
+
+
+private:
+    /// 线程池
     std::vector<Thread::ptr> m_threads;
-    //线程池中存在的总线程数
-    int m_threadSum;
-    // libevent句柄
-    event_base * m_base;
+    /// 线程池中存在的总线程数
+    uint64_t m_threadSum;
+    /// libevent句柄
+    struct event_base* m_base;
+    /// 监听事件
+    struct event* m_listenEv;
     // 轮询中 下一个线程的 下标
-    int next_thread_index;
-
-
-    uint64_t m_conSum = 0;
-    struct timeval be_tv;
-    struct timeval ed_tv;
-
+    size_t m_nextThread;
 
 };
 }

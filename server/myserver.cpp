@@ -3,8 +3,9 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <string>
 
-namespace BrainStorm
+namespace
 {
+/* spdlog初始化  */
 struct LogIniter
 {
     LogIniter()
@@ -22,25 +23,30 @@ struct LogIniter
     }
 };
 static LogIniter _initer;
+}
+
+namespace BrainStorm
+{
+
 static auto g_logger = spdlog::get("BrainStorm");
 
-MyServer::MyServer(int threadSum)
+MyServer::MyServer(uint64_t threadSum)
     :TcpServer(threadSum)
 {
-    //spdlog 日志 设置
     g_logger->info("Welcome to BrainStorm server v1.0.0  !");
 
     //初始化 数据库
     m_db.reset(new MySqlConnection("192.168.77.136", "root", "123456", "BrainStorm"));
 
-
     // 初始化段位表
     initRankTable();
-
 }
 
+MyServer* MyServer::GetThis()
+{
+    return dynamic_cast<MyServer*>(TcpServer::GetThis());
+}
 
-/*------------------------------------------虚函数重写------------------------------------------*/
 // 客户端连接事件
 void MyServer::conncectEvent(TcpSocket * s)
 {
@@ -52,7 +58,11 @@ void MyServer::conncectEvent(TcpSocket * s)
 void MyServer::readEvent(TcpSocket * s)
 {
     //读缓冲区
-    char buf[1024] = {0};
+    std::shared_ptr<char> data(new char[1024 *1024], [](char *p){
+        delete[] p;
+    });
+
+    char *buf = data.get();
 
     //循环 一直读取来自客户端的数据
     while(1)
@@ -67,7 +77,6 @@ void MyServer::readEvent(TcpSocket * s)
 
         s->readData(buf, len);
     }
-
 
     //数据解析  将读取的数据解析为Json格式
     Json::Value root;
@@ -118,39 +127,42 @@ void MyServer::writeEvent(TcpSocket * s)
 void MyServer::closeEvent(TcpSocket * s, short what) 
 {
     //客户端 退出的 时候 应该清除 相关容器(用户在线列表 匹配等待列表)中的 信息
-    std::unique_lock<std::mutex> lock(online_user_mutex);
 
-    auto online_it = m_onlineUsers.find(s->getUserName());
+    std::string name = s->getUserName();
+    std::string ip = s->getClientIp();
+    uint16_t port = s->getClientPort();
+    int rank = -1;
+
+    Thread::GetThis()->delClient(s->getFd());
+
+    std::unique_lock<std::mutex> lock(online_user_mutex);
+    
+    auto online_it = m_onlineUsers.find(name);
     if(online_it != m_onlineUsers.end())
     {
+        rank = online_it->second->getRank();
         m_onlineUsers.erase(online_it);
+        
         lock.unlock();
 
         g_logger->info("user :{} offline", s->getUserName());
 
         std::unique_lock<std::mutex> compete_lock(compete_mutex);
-        auto compete_it = m_competors.find(online_it->second->getRank());
+        auto compete_it = m_competors.find(rank);
         if(compete_it != m_competors.end())
         {
             g_logger->info("user: {} erase from m_competors", compete_it->second->getUserName());
             m_competors.erase(compete_it);
         }
     }
-   
 
-    g_logger->debug("client closed[{} : {}]", s->getClientIp(), s->getClientPort());
-
-    delete s;
-
-    
+    g_logger->debug("client closed[{} : {}]", ip, port);
 
 }
 
 
-/*------------------------------------------------------------------------------*/
-
 //向客户端 写入数据
-void MyServer::writeData(TcpSocket * s, const Json::Value &inJson)
+void MyServer::writeData(TcpSocket* s, const Json::Value &inJson)
 {
     std::string data = inJson.toStyledString();
     s->writeData(data.c_str(), data.length());

@@ -33,6 +33,7 @@ namespace BrainStorm
  */
 class MyServer : public TcpServer
 {
+    friend class TcpSocket;
 public:
     typedef std::shared_ptr<MyServer> ptr;
 
@@ -40,7 +41,13 @@ public:
      * @brief 具体服务器类构造函数
      * @param[in] threadSum 起始线程数量 
      */
-    MyServer(int threadSum = 10);
+    MyServer(uint64_t threadSum = 10);
+
+    /**
+     * @brief 获取当前服务器指针
+     * @return MyServer* 
+     */
+    static MyServer* GetThis();
 
 protected:
     /**
