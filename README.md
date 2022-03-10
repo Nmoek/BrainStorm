@@ -15,6 +15,23 @@
   （可改进点：应该是根据每一个线程的具体和客户端的通繁忙程度来分发，而不是盲目"平均"）
 ![image](https://user-images.githubusercontent.com/53595455/157326345-24f05eb9-1289-4932-8da1-c42e67294c91.png)
 
+### 服务器架构改进
+- **问题描述**：压测过程中，总是报错`event_queue_insert_inserted`来自libevnt库内部的一个`assert`断言。一开始判断出来，在主线程`accept`接收到新连接时，往子线程的`event_base`中添加，发生了线程竞争的问题，加锁也不管用。经过多番了解发现libevent无法保证线程安全，现在已经有支持但是使用起来非常不方便。  
+
+- **问题解决**：于是将接收新连接分发的这个**通知过程**进行改进，使用无名管道`pipe`去完成主线程通知子线程处理新连接。由于管道自身是线程安全的，不用考虑加锁，每一个子线程持有一个管道，将管道的读端加入到事件循环中，主线程拿到新的连接就通过该管道的写端把新建立的套接字传给子线程，子线程又去进一步完成和客户端的数据交互通信。  
+![image](https://user-images.githubusercontent.com/53595455/157752812-f4c19f04-c51a-49a8-9ec4-650ff62241d4.png)  
+
+
+- **改进后压测结果**：
+  - 使用两台虚拟机，服务端配置：内存4G 3核  客户端配置：内存8G 3核
+  - 服务器绑定1个IP开放100个端口，客户端开3个进程依次轮询连接服务器的100个端口。并且连接建立后，使用回射服务器模型，完成一次数据收发。
+  - 平均建立1000条连接花费6000ms左右，极限连接数约80W(没能突破100W有点可惜....)  
+  ![image](https://user-images.githubusercontent.com/53595455/157753091-211d1d1b-fe7f-4516-8a01-498d76a152fb.png)  
+![image](https://user-images.githubusercontent.com/53595455/157753256-3767b5b6-7951-4818-9b67-5ea07bdf9daa.png)  
+![image](https://user-images.githubusercontent.com/53595455/157753281-6ed13e0f-0eb0-4a4a-8cb2-eb45ff0ae783.png)  
+![image](https://user-images.githubusercontent.com/53595455/157753305-8e6db381-02b9-4e59-af47-f739dea80b4d.png)  
+
+---
 
 2. **libevent框架使用**：底层封装的就是epoll, 机制原理：套接字加入到epoll + 绑定事件回调 + 异步IO处理。
 - `event_base_new()` 初始化libevnt/事件表
